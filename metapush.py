@@ -87,10 +87,6 @@ class ContainerParser(HandlerBase):
     """ContainerParser - Base class for handling containers (templates)
     """
 
-    pass
-class ContainerParserArcGIS(ContainerParser):
-    """ContainerParserArcGIS - class for handling ArcGIS metadata XML
-    """
 
     def __init__(self, opt):
         """
@@ -100,6 +96,9 @@ class ContainerParserArcGIS(ContainerParser):
 
 
 
+class ContainerParserArcGIS(ContainerParser):
+    """ContainerParserArcGIS - class for handling ArcGIS metadata XML
+    """
     def entities(self, with_ele=True):
         """entities - list entities (feature classes, really) in template
 
@@ -137,9 +136,6 @@ class ContainerParserArcGIS(ContainerParser):
 class ContentGenerator(HandlerBase):
     """ContainerParser - Base class for generating content from input
     """
-class ContentGeneratorCSV(ContentGenerator):
-    """ContentGeneratorCSV - read table attribute descriptions from .csv
-    """
     def __init__(self, opt):
         """
         :param argparse Namespace opt: options
@@ -147,6 +143,9 @@ class ContentGeneratorCSV(ContentGenerator):
         self.opt = opt
 
 
+class ContentGeneratorCSV(ContentGenerator):
+    """ContentGeneratorCSV - read table attribute descriptions from .csv
+    """
     def entities(self):
         """entities - return list of entities for this input, a (csv)
         table with rows describing fields.  The presence of a
@@ -178,6 +177,16 @@ class ContentGeneratorCSV(ContentGenerator):
         """
 
         return (opt.content or '').lower().endswith('.csv')
+class ContentWriter(HandlerBase):
+    """ContentWriter - write merged content
+    """
+def __init__(self, opt):
+    """
+    :param argparse Namespace opt: options
+    """
+    self.opt = opt
+
+
 def add_content(dom, opt):
     """add_content - Update dom with content from opt.content
 
@@ -186,6 +195,27 @@ def add_content(dom, opt):
     """
 
     pass
+def do_update(old, new):
+    """do_update - like dict.update(), but use canonical key names
+
+    :param dict old: dict to update
+    :param dict new: dict with new info.
+
+    """
+
+    for newkey in new:
+
+        if newkey.lower() in KEY_ALIASES:
+            old[newkey.lower()] = new[newkey]
+            continue
+
+        # check aliases
+        for key,keys in KEY_ALIASES.items():
+            if newkey.lower() in keys:
+                old[key] = new[newkey]
+                break
+        else:
+            old[newkey] = new[newkey]
 def get_val(source, key, hdr=None):
     """get_val - get a value from source with aliases
 
@@ -246,6 +276,8 @@ def merge_content(old, new, names, sublists=None):
                     i_old[sublists[1]] = merge_content(
                         i_old[sublists[1]], i_new[sublists[1]],
                         names[1:], sublists[1:])
+                else:
+                    do_update(i_old, i_new)
                 break
         if found:
             break
