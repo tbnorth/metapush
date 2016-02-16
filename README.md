@@ -4,7 +4,7 @@ Push content into metadata files
 
     usage: metapush.py [-h] [--overwrite] template content output
 
-    Push content to metadata files efficiently
+    Push content into metadata files efficiently
 
     positional arguments:
       template     metadata template (XML)
