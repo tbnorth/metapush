@@ -1,5 +1,5 @@
 """
-metapush.py - push content to metadata files efficiently
+metapush.py - push content into metadata files efficiently
 
 Terry Brown, Terry_N_Brown@yahoo.com, Mon Feb 15 21:20:33 2016
 """
@@ -21,7 +21,7 @@ def add_content(dom, opt):
 def make_parser():
      
      parser = argparse.ArgumentParser(
-         description="""Push content to metadata files efficiently""",
+         description="""Push content into metadata files efficiently""",
          formatter_class=argparse.ArgumentDefaultsHelpFormatter
      )
      
