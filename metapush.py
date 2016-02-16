@@ -28,6 +28,7 @@ Terry Brown, Terry_N_Brown@yahoo.com, Mon Feb 15 21:20:33 2016
 """
 
 import argparse
+from copy import deepcopy
 import csv
 import os
 from pprint import pprint
@@ -136,30 +137,6 @@ class ContainerParserArcGIS(ContainerParser):
 class ContentGenerator(HandlerBase):
     """ContainerParser - Base class for generating content from input
     """
-
-    @staticmethod
-    def get_val(source, key, hdr=None):
-        """get_val - get a value from source with aliases
-
-        :param dict/list source: source of values
-        :param str key: key or alias to get
-        :param dict hdr: map column numbers to key names
-        """
-
-        if hdr:
-            source = {key:source[col] for key,col in hdr.items()}
-
-        if key in source:
-            # give exact match precedence
-            return source[key]
-
-        # check aliases
-        keys = KEY_ALIASES.get(key, [])
-        for key in keys:
-            if key in source:
-                return source[key]
-
-        return None
 class ContentGeneratorCSV(ContentGenerator):
     """ContentGeneratorCSV - read table attribute descriptions from .csv
     """
@@ -182,9 +159,9 @@ class ContentGeneratorCSV(ContentGenerator):
         hdr = {i.lower():n for n,i in enumerate(next(reader))}
         for row in reader:
             # for table inputs describing multiple tables
-            row_name = self.get_val(row, 'entity_name', hdr)
+            row_name = get_val(row, 'entity_name', hdr)
             if (not entities or
-                self.get_val(entities[-1], 'entity_name') != row_name):
+                get_val(entities[-1], 'entity_name') != row_name):
                 entities.append({'entity_name': None, 'attributes': []})
                 entities[-1]['entity_name'] = row_name
 
@@ -209,6 +186,28 @@ def add_content(dom, opt):
     """
 
     pass
+def get_val(source, key, hdr=None):
+    """get_val - get a value from source with aliases
+
+    :param dict/list source: source of values
+    :param str key: key or alias to get
+    :param dict hdr: map column numbers to key names
+    """
+
+    if hdr:
+        source = {key:source[col] for key,col in hdr.items()}
+
+    if key in source:
+        # give exact match precedence
+        return source[key]
+
+    # check aliases
+    keys = KEY_ALIASES.get(key, [])
+    for key in keys:
+        if key in source:
+            return source[key]
+
+    return None
 def make_parser():
 
      parser = argparse.ArgumentParser(
@@ -227,6 +226,35 @@ def make_parser():
 
 
 
+def merge_content(old, new, names, sublists=None):
+    """merge_content - merge data from content into data from template
+
+    :param list old: elements (feature classes), or attributes
+    :param lsit new: elements (feaures classes), or attributes
+    :return: merged list
+    """
+
+    merged = deepcopy(old)
+    to_append = []  # at end, not while iterating
+
+    for i_new in new:
+        found = False
+        for i_old in merged:
+            if get_val(i_old, names[0]) == get_val(i_new, names[0]):
+                found = True
+                if len(names) > 1:
+                    i_old[sublists[1]] = merge_content(
+                        i_old[sublists[1]], i_new[sublists[1]],
+                        names[1:], sublists[1:])
+                break
+        if found:
+            break
+        else:
+            to_append.append(i_new)
+
+    merged.extend(to_append)
+
+    return merged
 def main():
     """read args, load template, update, (over)write output"""
     opt = make_parser().parse_args()
@@ -241,9 +269,13 @@ def main():
     if not opt.output:
         if opt.content:
             content = ContentGenerator.handle(opt).entities()
-            pprint(content)
+            # pprint(content)
         if opt.template:
             template = ContainerParser.handle(opt).entities(with_ele=False)
-            pprint(template)
+            # pprint(template)
+
+        pprint(merge_content(
+            template, content,
+            ['entity_name', 'attribute_name'], [None, 'attributes']))
 if __name__ == '__main__':
     main()
