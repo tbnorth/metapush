@@ -180,12 +180,35 @@ class ContentGeneratorCSV(ContentGenerator):
 class ContentWriter(HandlerBase):
     """ContentWriter - write merged content
     """
-def __init__(self, opt):
-    """
-    :param argparse Namespace opt: options
-    """
-    self.opt = opt
+    def __init__(self, opt):
+        """
+        :param argparse Namespace opt: options
+        """
+        self.opt = opt
 
+
+
+class ContentWriterArcGIS(ContentWriter):
+    """ContentWriterArcGIS - write content to ESRI XML
+    """
+    @staticmethod
+    def handle(opt):
+        """handle - see if this subclass handles content in opt
+
+        :param argparse Namespace opt: options
+        :return: True / False
+        :rtype: bool
+        """
+
+        return ContainerParserArcGIS.handle(opt)
+
+    def write(self, content):
+        """write - write content into opt.dom
+
+        :param list content: merged content
+        """
+
+        return
 
 def add_content(dom, opt):
     """add_content - Update dom with content from opt.content
@@ -293,10 +316,10 @@ def main():
     if opt.template:
         opt.dom = ElementTree.parse(opt.template)
     # add_content(dom, opt)
-    if opt.output and os.file.exists(opt.output) and not opt.overwrite:
+    if opt.output and os.path.exists(opt.output) and not opt.overwrite:
         raise IOError(
             "metapush: output file '%s' exists, --overwrite not specified" %
-            out.output)
+            opt.output)
 
     if not opt.output:
         if opt.content:
@@ -305,9 +328,18 @@ def main():
         if opt.template:
             template = ContainerParser.handle(opt).entities(with_ele=False)
             # pprint(template)
-
-        pprint(merge_content(
-            template, content,
+        pprint(merge_content(template, content,
             ['entity_name', 'attribute_name'], [None, 'attributes']))
+    else:
+        # content from template
+        template = ContainerParser.handle(opt).entities()
+        # new content
+        content = ContentGenerator.handle(opt).entities()
+        merged = merge_content(template, content,
+            ['entity_name', 'attribute_name'], [None, 'attributes'])
+        writer = ContentWriter.handle(opt)
+        writer.write(merged)
+        opt.dom.write(open(opt.output, 'w'))
+
 if __name__ == '__main__':
     main()
