@@ -10,7 +10,7 @@ in hierarchical entry forms.
 
 Solution: not another metadata editor, although it seems there's room
 for one which focuses on efficiency and labor reduction, but a tool
-to inject repeditive data like column descriptions into (xml) metadata
+to inject repetitive data like column descriptions into (xml) metadata
 documents from a source that can be created quickly and easily, like
 a table (.csv etc.), or perhaps JSON, YAML, or other light weight
 markup.
@@ -18,9 +18,8 @@ markup.
 Approach: initial goal is injection of table column descriptions from
 csv tables into ArcGIS and / or CSGDM xml already populated (by ArcMap
 etc.) with general and geometry related information. However the
-archetecture is intended to be expandable for other targets (ISO19139,
+architecture is intended to be expandable for other targets (ISO19139,
 ISO Feature Catalog) and sources (JSON, YAML etc.).
-
 
 forgo use of lxml because it's hard to install in some restricted
 environments
@@ -43,24 +42,30 @@ KEY_ALIASES = {
         'attribute', 'field_name', 'field', 'column_name', 'column',
     ],
 }
-class ContentGenerator(object):
-    """ContentGenerator - Base class for generating content from input
+class HandlerBase(object):
+    """HandlerBase - base class for base classes which collect
+    registrations of subclasses to handle different inputs. Defines
+    a metaclass to do subclass registration, and handle() to select
+    a subclass.  Subclasses should redefine handle() to determine
+    if they handle a particular input.
     """
 
     # handle registration of subclasses
     class __metaclass__(type):
         def __new__(meta, name, bases, class_dict):
             cls = type.__new__(meta, name, bases, class_dict)
-            if hasattr(cls, '_generators'):
-                cls._generators.append(cls)
-            else:
-                # base class, don't register
-                cls._generators = []
+            if name != 'HandlerBase':
+                if hasattr(cls, '_generators'):
+                    cls._generators.append(cls)
+                else:
+                    # base class, don't register
+                    cls._generators = []
             return cls
+
 
     @classmethod
     def handle(cls, opt):
-        """__call__ - returna appropriate content generator
+        """__call__ - return an appropriate subclass to handle things
 
         :param argparse Namespace opt: options
         :return: ContentGenerator subclass instance
@@ -69,6 +74,64 @@ class ContentGenerator(object):
         for i in cls._generators:
             if i.handle(opt):
                 return i(opt)
+
+        raise TypeError("No handler found for input")
+
+class ContainerParser(HandlerBase):
+    """ContainerParser - Base class for handling containers (templates)
+    """
+
+    pass
+class ContainerParserArcGIS(ContainerParser):
+    """ContainerParserArcGIS - class for handling ArcGIS metadata XML
+    """
+
+    def __init__(self, opt):
+        """
+        :param argparse Namespace opt: options
+        """
+        self.opt = opt
+
+
+
+    def entities(self, with_ele=True):
+        """entities - list entities (feature classes, really) in template
+
+        :param book with_ele: include link to Element in dom
+        """
+
+        entities = []
+        for ele_entity in self.opt.dom.findall('.//eainfo/detailed'):
+            entity = {
+                'entity_name': ele_entity.findall('.//enttypl')[0].text,
+                'attributes': [],
+            }
+            if with_ele:
+                entity['_ELE'] = ele_entity
+
+            entities.append(entity)
+            for ele_attribute in ele_entity.findall('.//attr'):
+                entity['attributes'].append({
+                    'attribute_name': ele_attribute.findall('.//attrlabl')[0].text,
+                })
+                if with_ele:
+                    entity['attributes'][-1]['_ELE'] = ele_attribute
+
+        return entities
+    @staticmethod
+    def handle(opt):
+        """handle - see if this subclass handles content in opt
+
+        :param argparse Namespace opt: options
+        :return: True / False
+        :rtype: bool
+        """
+
+        return opt.dom.findall(".//Esri")
+class ContentGenerator(HandlerBase):
+    """ContainerParser - Base class for generating content from input
+    """
+
     @staticmethod
     def get_val(source, key, hdr=None):
         """get_val - get a value from source with aliases
@@ -106,7 +169,7 @@ class ContentGeneratorCSV(ContentGenerator):
     def entities(self):
         """entities - return list of entities for this input, a (csv)
         table with rows describing fields.  The presence of a
-        `entity_name` field (or its aliases, like `table) indicates more
+        `entity_name` field (or its aliases, like `table`) indicates more
         than one entity described.
         """
 
@@ -164,7 +227,7 @@ def main():
     """read args, load template, update, (over)write output"""
     opt = make_parser().parse_args()
     if opt.template:
-        dom = ElementTree.parse(opt.template)
+        opt.dom = ElementTree.parse(opt.template)
     # add_content(dom, opt)
     if opt.output and os.file.exists(opt.output) and not opt.overwrite:
         raise IOError(
@@ -172,6 +235,9 @@ def main():
             out.output)
     if opt.content:
         entities = ContentGenerator.handle(opt).entities()
+        pprint(entities)
+    if opt.template:
+        entities = ContainerParser.handle(opt).entities(with_ele=False)
         pprint(entities)
     # dom.write(opt.output)
 if __name__ == '__main__':
