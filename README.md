@@ -2,15 +2,16 @@
 
 Push content into metadata files
 
-    usage: metapush.py [-h] [--overwrite] template content output
+See docs. at top of [metapush.py](metapush.py) for more info.
 
+    usage: metapush.py [-h] [--template TEMPLATE] [--content CONTENT]
+                       [--output OUTPUT] [--overwrite]
+    
     Push content into metadata files efficiently
-
-    positional arguments:
-      template     metadata template (XML)
-      content      content to push into metadata
-      output       output file
-
+    
     optional arguments:
-      -h, --help   show this help message and exit
-      --overwrite  overwrite output if it exists (default: False)
+      -h, --help           show this help message and exit
+      --template TEMPLATE  metadata template (default: None)
+      --content CONTENT    content to push into metadata (default: None)
+      --output OUTPUT      output file (default: None)
+      --overwrite          overwrite output if it exists (default: False)

@@ -1,6 +1,27 @@
 """
 metapush.py - push content into metadata files efficiently
 
+Problem: metadata editors, such as ArcGIS, Morpho, CatMDEdit, and
+GeoNetwork, tend to be labor intensive, particularly when describing
+repeated components such as columns in (attribute) tables. Column
+definitions are often the piece of metadata people need first. Labor
+here refers to a lot of pointing and clicking to add, expand, and fill
+in hierarchical entry forms.
+
+Solution: not another metadata editor, although it seems there's room
+for one which focuses on efficiency and labor reduction, but a tool
+to inject repeditive data like column descriptions into (xml) metadata
+documents from a source that can be created quickly and easily, like
+a table (.csv etc.), or perhaps JSON, YAML, or other light weight
+markup.
+
+Approach: initial goal is injection of table column descriptions from
+csv tables into ArcGIS and / or CSGDM xml already populated (by ArcMap
+etc.) with general and geometry related information. However the
+archetecture is intended to be expandable for other targets (ISO19139,
+ISO Feature Catalog) and sources (JSON, YAML etc.).
+
+
 forgo use of lxml because it's hard to install in some restricted
 environments
 
@@ -26,6 +47,7 @@ class ContentGenerator(object):
     """ContentGenerator - Base class for generating content from input
     """
 
+    # handle registration of subclasses
     class __metaclass__(type):
         def __new__(meta, name, bases, class_dict):
             cls = type.__new__(meta, name, bases, class_dict)
@@ -82,7 +104,10 @@ class ContentGeneratorCSV(ContentGenerator):
 
 
     def entities(self):
-        """entities - return list of entities for this input
+        """entities - return list of entities for this input, a (csv)
+        table with rows describing fields.  The presence of a
+        `entity_name` field (or its aliases, like `table) indicates more
+        than one entity described.
         """
 
         entities = []
