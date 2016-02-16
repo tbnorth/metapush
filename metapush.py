@@ -38,9 +38,14 @@ KEY_ALIASES = {
     'entity_name': [
         'entity', 'table_name', 'table', 'layer'
     ],
-    'attribute_name': [
-        'attribute', 'field_name', 'field', 'column_name', 'column',
-    ],
+    'attribute_name': ['attribute', 'field_name', 'field', 'column_name',
+        'column', ],
+    # need column_* versions of these?
+    'attribute_definition': ['definition', 'description', ],
+    'attribute_source': ['source', ],
+    'attribute_type': ['type', ],
+    'min': ['minimum', ],
+    'max': ['maximum', ],
 }
 class HandlerBase(object):
     """HandlerBase - base class for base classes which collect
@@ -155,7 +160,6 @@ class ContentGenerator(HandlerBase):
                 return source[key]
 
         return None
-
 class ContentGeneratorCSV(ContentGenerator):
     """ContentGeneratorCSV - read table attribute descriptions from .csv
     """
@@ -175,7 +179,7 @@ class ContentGeneratorCSV(ContentGenerator):
 
         entities = []
         reader = csv.reader(open(self.opt.content))
-        hdr = {i:n for n,i in enumerate(next(reader))}
+        hdr = {i.lower():n for n,i in enumerate(next(reader))}
         for row in reader:
             # for table inputs describing multiple tables
             row_name = self.get_val(row, 'entity_name', hdr)
@@ -233,12 +237,13 @@ def main():
         raise IOError(
             "metapush: output file '%s' exists, --overwrite not specified" %
             out.output)
-    if opt.content:
-        entities = ContentGenerator.handle(opt).entities()
-        pprint(entities)
-    if opt.template:
-        entities = ContainerParser.handle(opt).entities(with_ele=False)
-        pprint(entities)
-    # dom.write(opt.output)
+
+    if not opt.output:
+        if opt.content:
+            content = ContentGenerator.handle(opt).entities()
+            pprint(content)
+        if opt.template:
+            template = ContainerParser.handle(opt).entities(with_ele=False)
+            pprint(template)
 if __name__ == '__main__':
     main()
