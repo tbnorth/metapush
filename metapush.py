@@ -114,9 +114,18 @@ class ContainerParserArcGIS(ContainerParser):
             entities.append(entity)
 
             for ele_attribute in ele_entity.findall('.//attr'):
-                entity['attributes'].append({
+                attribute = {
                     'attribute_name': ele_attribute.findall('.//attrlabl')[0].text,
-                })
+                }
+                entity['attributes'].append(attribute)
+                for attrname, attrpath in [
+                    ('min', 'attrdomv/rdom/rdommin'),
+                    ('max', 'attrdomv/rdom/rdommax'),
+                ]:
+                    attrval = ele_attribute.find(attrpath)
+                    if attrval is not None:
+                        attribute[attrname] = attrval.text
+
 
         return entities
     @staticmethod
@@ -217,13 +226,25 @@ class ContentWriterArcGIS(ContentWriter):
                 )
                 attr = attr_path[-1]
 
-                attribute_type = get_val(attribute, 'attribute_type')
-                if attribute_type:
-                    holder = attr.find('attrtype')
-                    if holder is None:
-                        holder = ElementTree.Element('attrtype')
-                        attr.append(holder)
-                    holder.text = attribute_type
+                for attrname, attrpath in [
+                    ('attribute_type', 'attrtype'),
+                    ('min', 'attrdomv/rdom/rdommin'),
+                    ('max', 'attrdomv/rdom/rdommax'),
+                ]:
+                    attrval = get_val(attribute, attrname)
+                    if attrval is not None and str(attrval).strip():
+                        # 0 (zero) is a valid value
+                        pos = attr
+                        steps = attrpath.split('/')
+                        while steps:
+                            step = steps.pop(0)
+                            if pos.find(step) is not None:
+                                pos = pos.find(step)
+                            else:
+                                ele = ElementTree.Element(step)
+                                pos.append(ele)
+                                pos = ele
+                        pos.text = attrval
 def add_content(dom, opt):
     """add_content - Update dom with content from opt.content
 
@@ -294,12 +315,19 @@ def make_parser():
 
 
 def make_path(dom, path, textpath, text):
-    """make_path - find or make a path of XML attributes ending
-    in one with text as its text content
+    """make_path - find or make a path of XML elements ending
+    in one with `text` as its text content (maybe in a subpath) e.g.:
+
+    call: dom, 'eainfo/detailed', 'enttyp/enttypl', 'MyTable'
+
+    returns: [<Element:eainfo>, <Element:datailed>]
+
+    such that the `detailed` element has a child `enttyp` which has a child
+    `enttypl` with text 'MyTable'
 
     :param XML dom: XML to search / edit
     :param str path: XPath like path to target container
-    :param str path: more XPath like path to element containing name
+    :param str textpath: more XPath like path to element containing name
     :param str text: text (name) to place in last element
     """
 
