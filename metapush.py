@@ -99,7 +99,7 @@ class ContainerParser(HandlerBase):
 class ContainerParserArcGIS(ContainerParser):
     """ContainerParserArcGIS - class for handling ArcGIS metadata XML
     """
-    def entities(self, with_ele=True):
+    def entities(self):
         """entities - list entities (feature classes, really) in template
 
         :param book with_ele: include link to Element in dom
@@ -111,16 +111,12 @@ class ContainerParserArcGIS(ContainerParser):
                 'entity_name': ele_entity.findall('.//enttypl')[0].text,
                 'attributes': [],
             }
-            if with_ele:
-                entity['_ELE'] = ele_entity
-
             entities.append(entity)
+
             for ele_attribute in ele_entity.findall('.//attr'):
                 entity['attributes'].append({
                     'attribute_name': ele_attribute.findall('.//attrlabl')[0].text,
                 })
-                if with_ele:
-                    entity['attributes'][-1]['_ELE'] = ele_attribute
 
         return entities
     @staticmethod
@@ -208,7 +204,20 @@ class ContentWriterArcGIS(ContentWriter):
         :param list content: merged content
         """
 
-        return
+        for entity in content:
+            ent_path = make_path(
+                self.opt.dom.getroot(), 'eainfo/detailed', 'enttyp/enttypl',
+                get_val(entity, 'entity_name')
+            )
+            detailed = ent_path[-1]
+            for attribute in entity['attributes']:
+                attr_path = make_path(
+                    detailed, 'attr', 'attrlabl',
+                    get_val(attribute, 'attribute_name')
+                )
+                attr = attr_path[-1]
+
+
 
 def add_content(dom, opt):
     """add_content - Update dom with content from opt.content
@@ -279,6 +288,53 @@ def make_parser():
 
 
 
+def make_path(dom, path, textpath, text):
+    """make_path - find or make a path of XML attributes ending
+    in one with text as its text content
+
+    :param XML dom: XML to search / edit
+    :param str path: XPath like path to target container
+    :param str path: more XPath like path to element containing name
+    :param str text: text (name) to place in last element
+    """
+
+    steps = path.split('/')
+    path = [dom]
+    while steps:
+        step = steps.pop(0)
+        next = path[-1].findall('.//'+step)
+        if not steps:
+            break  # next is list of possibles
+        if next:
+            assert len(next) == 1, path
+            path.append(next[0])
+        else:  # add intermediates if needed
+            ele = ElementTree.Element(step)
+            path[-1].append(ele)
+            path.append(ele)
+    # end with `next` list of possibles
+
+    for test in next:
+        if textpath:
+            src = test.findall(textpath)
+            assert len(src) == 1, (src, path, next, textpath)
+            value = src[0].text
+        else:
+            value = test.text
+        if value == text:
+            path.append(test)
+            break
+    else:
+        text_holder = ElementTree.Element(step)
+        path[-1].append(text_holder)
+        path.append(text_holder)
+        for step in textpath.split('/'):
+            new = ElementTree.Element(step)
+            text_holder.append(new)
+            text_holder = new
+        new.text = text
+
+    return path
 def merge_content(old, new, names, sublists=None):
     """merge_content - merge data from content into data from template
 
@@ -324,12 +380,15 @@ def main():
     if not opt.output:
         if opt.content:
             content = ContentGenerator.handle(opt).entities()
-            # pprint(content)
+            if not opt.template:
+                pprint(content)
         if opt.template:
-            template = ContainerParser.handle(opt).entities(with_ele=False)
-            # pprint(template)
-        pprint(merge_content(template, content,
-            ['entity_name', 'attribute_name'], [None, 'attributes']))
+            template = ContainerParser.handle(opt).entities()
+            if not opt.content:
+                pprint(template)
+        if opt.template and opt.content:
+            pprint(merge_content(template, content,
+                ['entity_name', 'attribute_name'], [None, 'attributes']))
     else:
         # content from template
         template = ContainerParser.handle(opt).entities()
