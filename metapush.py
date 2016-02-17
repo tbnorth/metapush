@@ -217,8 +217,13 @@ class ContentWriterArcGIS(ContentWriter):
                 )
                 attr = attr_path[-1]
 
-
-
+                attribute_type = get_val(attribute, 'attribute_type')
+                if attribute_type:
+                    holder = attr.find('attrtype')
+                    if holder is None:
+                        holder = ElementTree.Element('attrtype')
+                        attr.append(holder)
+                    holder.text = attribute_type
 def add_content(dom, opt):
     """add_content - Update dom with content from opt.content
 
