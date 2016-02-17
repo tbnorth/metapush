@@ -39,14 +39,18 @@ KEY_ALIASES = {
     'entity_name': [
         'entity', 'table_name', 'table', 'layer'
     ],
+    'entity_definition': [
+        'entity', 'table_name', 'table', 'layer'
+    ],
     'attribute_name': ['attribute', 'field_name', 'field', 'column_name',
         'column', ],
     # need column_* versions of these?
     'attribute_definition': ['definition', 'description', ],
     'attribute_source': ['source', ],
-    'attribute_type': ['type', ],
+    'attribute_type': ['type', 'storage'],
     'min': ['minimum', ],
     'max': ['maximum', ],
+    'units': ['unit', ],
 }
 class HandlerBase(object):
     """HandlerBase - base class for base classes which collect
@@ -121,6 +125,8 @@ class ContainerParserArcGIS(ContainerParser):
                 for attrname, attrpath in [
                     ('min', 'attrdomv/rdom/rdommin'),
                     ('max', 'attrdomv/rdom/rdommax'),
+                    ('units', 'attrdomv/rdom/attrunit'),
+                    ('attribute_definition', 'attrdef'),
                 ]:
                     attrval = ele_attribute.find(attrpath)
                     if attrval is not None:
@@ -170,6 +176,10 @@ class ContentGeneratorCSV(ContentGenerator):
                 entities[-1]['entity_name'] = row_name
 
             entities[-1]['attributes'].append({k:row[hdr[k]] for k in hdr})
+
+        if self.opt.tables:
+            entities = [i for i in entities
+                       if i['entity_name'] in self.opt.tables]
 
         return entities
     @staticmethod
@@ -228,8 +238,10 @@ class ContentWriterArcGIS(ContentWriter):
 
                 for attrname, attrpath in [
                     ('attribute_type', 'attrtype'),
+                    ('attribute_definition', 'attrdef'),
                     ('min', 'attrdomv/rdom/rdommin'),
                     ('max', 'attrdomv/rdom/rdommax'),
+                    ('units', 'attrdomv/rdom/attrunit'),
                 ]:
                     attrval = get_val(attribute, attrname)
                     if attrval is not None and str(attrval).strip():
@@ -304,11 +316,14 @@ def make_parser():
      )
 
      parser.add_argument('--template', help="metadata template")
-     parser.add_argument('--content', help="content to push into metadata")
+     parser.add_argument('--content',
+         help="content (field descriptions) to push into metadata")
      parser.add_argument('--output', help="output file")
      parser.add_argument("--overwrite", action='store_true',
          help="overwrite output if it exists"
      )
+     parser.add_argument('--tables', nargs='+',
+         help="if `content` covers multiple tables, use only these")
 
      return parser
 
