@@ -324,7 +324,9 @@ def make_parser():
      )
      parser.add_argument('--tables', nargs='+',
          help="if `content` covers multiple tables, use only these")
-
+     parser.add_argument('--data',
+         help="path (e.g. '.') on which to find data, will check for "
+              "mismatch in tables / fields with metadata)")
      return parser
 
 
@@ -425,28 +427,44 @@ def main():
             "metapush: output file '%s' exists, --overwrite not specified" %
             opt.output)
 
+    content = None
+    template = None
+    merged = None
+    datasets = []
+
+    if opt.template:
+        template = ContainerParser.handle(opt).entities()
+        datasets.append(template)
+    if opt.content:
+        content = ContentGenerator.handle(opt).entities()
+        datasets.append(content)
+    if opt.template and opt.content:
+        merged = merge_content(template, content,
+            ['entity_name', 'attribute_name'], [None, 'attributes'])
+        datasets.append(merged)
+
+    if opt.data:
+        compare_data(opt, datasets[-1])
+        return
+
     if not opt.output:
-        if opt.content:
-            content = ContentGenerator.handle(opt).entities()
-            if not opt.template:
-                pprint(content)
-        if opt.template:
-            template = ContainerParser.handle(opt).entities()
-            if not opt.content:
-                pprint(template)
-        if opt.template and opt.content:
-            pprint(merge_content(template, content,
-                ['entity_name', 'attribute_name'], [None, 'attributes']))
-    else:
+        pprint(datasets[-1])
+        return
+
+    if opt.output:
         # content from template
         template = ContainerParser.handle(opt).entities()
         # new content
         content = ContentGenerator.handle(opt).entities()
-        merged = merge_content(template, content,
-            ['entity_name', 'attribute_name'], [None, 'attributes'])
+
         writer = ContentWriter.handle(opt)
         writer.write(merged)
         opt.dom.write(open(opt.output, 'w'))
+
+        return
+
+    print("Didn't find anything to do")
+
 
 if __name__ == '__main__':
     main()
