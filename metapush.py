@@ -347,7 +347,7 @@ def make_parser():
      )
 
      parser.add_argument('--template', help="metadata template")
-     parser.add_argument('--content',
+     parser.add_argument('--content', nargs='+',
          help="content (field descriptions) to push into metadata")
      parser.add_argument('--output', help="output file")
      parser.add_argument("--overwrite", action='store_true',
@@ -439,9 +439,7 @@ def merge_content(old, new, names, sublists=None):
                 else:
                     do_update(i_old, i_new)
                 break
-        if found:
-            break
-        else:
+        if not found:
             to_append.append(i_new)
 
     merged.extend(to_append)
@@ -467,7 +465,12 @@ def main():
         template = ContainerParser.handle(opt).entities()
         datasets.append(template)
     if opt.content:
-        content = ContentGenerator.handle(opt).entities()
+        content = []
+        for file_ in opt.content:
+            opt.content = file_
+            subcontent = ContentGenerator.handle(opt).entities()
+            content = merge_content(content, subcontent,
+                ['entity_name', 'attribute_name'], [None, 'attributes'])
         datasets.append(content)
     if opt.template and opt.content:
         merged = merge_content(template, content,
