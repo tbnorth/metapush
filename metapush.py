@@ -117,6 +117,9 @@ class ContainerParserArcGIS(ContainerParser):
             }
             entities.append(entity)
 
+            if self.opt.no_template_attributes:
+                continue
+
             for ele_attribute in ele_entity.findall('.//attr'):
                 attribute = {
                     'attribute_name': ele_attribute.findall('.//attrlabl')[0].text,
@@ -131,7 +134,6 @@ class ContainerParserArcGIS(ContainerParser):
                     attrval = ele_attribute.find(attrpath)
                     if attrval is not None:
                         attribute[attrname] = attrval.text
-
 
         return entities
     @staticmethod
@@ -370,6 +372,8 @@ def make_parser():
      parser.add_argument('--data',
          help="path (e.g. '.') on which to find data, will check for "
               "mismatch in tables / fields with metadata)")
+     parser.add_argument('--no-template-attributes', action='store_true',
+         help="ignore (and drop) all attribute level metadata in template")
      return parser
 
 
@@ -491,7 +495,6 @@ def main():
 
     if opt.data:
         compare_data(opt, datasets[-1])
-        return
 
     if not opt.output:
         pprint(datasets[-1])
