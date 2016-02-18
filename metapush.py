@@ -278,10 +278,12 @@ def compare_data(opt, content):
 
     data = {}
 
+    # re-arrange content as a dict
     content = {i['entity_name']:i['attributes'] for i in content}
     for key in list(content):
         content[key] = {get_val(i, 'attribute_name'):i for i in content[key]}
 
+    # search opt.data for .csv files
     for path, dirs, files in os.walk(opt.data):
         for file_ in files:
             if file_.lower().endswith(".csv"):
@@ -289,6 +291,7 @@ def compare_data(opt, content):
                 reader = csv.reader(open(filepath))
                 data[file_[:-4]] = next(reader)
 
+    # look for tables / files without metadata
     for table, fields in data.items():
         if table not in content:
             print "Data table '%s' not in metadata" % (table)
@@ -296,6 +299,15 @@ def compare_data(opt, content):
         for field in fields:
             if field not in content[table]:
                 print "Data field '%s.%s' not in metadata" % (table, field)
+
+    # look for metadata without tables / fields in data
+    for table, fields in content.items():
+        if table not in data:
+            print "Table metadata '%s' not in data" % (table)
+            continue
+        for field in fields:
+            if field not in data[table]:
+                print "Field metadata '%s.%s' not in data" % (table, field)
 def do_update(old, new):
     """do_update - like dict.update(), but use canonical key names
 
