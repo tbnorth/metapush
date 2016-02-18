@@ -265,6 +265,37 @@ def add_content(dom, opt):
     """
 
     pass
+def compare_data(opt, content):
+    """compare_data - compare data found at opt.data with content,
+    report difference in table and field sets
+
+    currently targets .csv files in opt.data, should probably be an
+    OGR source
+
+    :param argparse Namespace opt: options
+    :param list content: content assembled in main()
+    """
+
+    data = {}
+
+    content = {i['entity_name']:i['attributes'] for i in content}
+    for key in list(content):
+        content[key] = {get_val(i, 'attribute_name'):i for i in content[key]}
+
+    for path, dirs, files in os.walk(opt.data):
+        for file_ in files:
+            if file_.lower().endswith(".csv"):
+                filepath = os.path.join(path, file_)
+                reader = csv.reader(open(filepath))
+                data[file_[:-4]] = next(reader)
+
+    for table, fields in data.items():
+        if table not in content:
+            print "Data table '%s' not in metadata" % (table)
+            continue
+        for field in fields:
+            if field not in content[table]:
+                print "Data field '%s.%s' not in metadata" % (table, field)
 def do_update(old, new):
     """do_update - like dict.update(), but use canonical key names
 
