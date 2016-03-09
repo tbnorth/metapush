@@ -278,20 +278,13 @@ def compare_data(opt, content):
     :param list content: content assembled in main()
     """
 
-    data = {}
-
     # re-arrange content as a dict
     content = {i['entity_name']:i['attributes'] for i in content}
     for key in list(content):
         content[key] = {get_val(i, 'attribute_name'):i for i in content[key]}
 
     # search opt.data for .csv files
-    for path, dirs, files in os.walk(opt.data):
-        for file_ in files:
-            if file_.lower().endswith(".csv"):
-                filepath = os.path.join(path, file_)
-                reader = csv.reader(open(filepath))
-                data[file_[:-4]] = next(reader)
+    data = find_data(opt)
 
     # look for tables / files without metadata
     for table, fields in data.items():
@@ -331,6 +324,15 @@ def do_update(old, new):
                 break
         else:
             old[newkey] = new[newkey]
+def find_data(opt):
+    data = {}
+    for path, dirs, files in os.walk(opt.data):
+        for file_ in files:
+            if file_.lower().endswith(".csv"):
+                filepath = os.path.join(path, file_)
+                reader = csv.reader(open(filepath))
+                data[file_[:-4]] = next(reader)
+    return data
 def get_val(source, key, hdr=None):
     """get_val - get a value from source with aliases
 
@@ -355,29 +357,32 @@ def get_val(source, key, hdr=None):
     return None
 def make_parser():
 
-     parser = argparse.ArgumentParser(
-         description="""Push content into metadata files efficiently""",
-         formatter_class=argparse.ArgumentDefaultsHelpFormatter
-     )
+    parser = argparse.ArgumentParser(
+        description="""Push content into metadata files efficiently""",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter
+    )
 
-     parser.add_argument('--template', help="metadata template")
-     parser.add_argument('--content', nargs='+',
-         help="content (field descriptions) to push into metadata")
-     parser.add_argument('--output', help="output file")
-     parser.add_argument("--overwrite", action='store_true',
-         help="overwrite output if it exists"
-     )
-     parser.add_argument('--tables', nargs='+',
-         help="if `content` covers multiple tables, use only these")
-     parser.add_argument('--data',
-         help="path (e.g. '.') on which to find data, will check for "
-              "mismatch in tables / fields with metadata)")
-     parser.add_argument('--no-template-attributes', action='store_true',
-         help="ignore (and drop) all attribute level metadata in template")
-     return parser
+    parser.add_argument('--template', help="metadata template")
+    parser.add_argument('--content', nargs='+',
+        help="content (field descriptions) to push into metadata")
+    parser.add_argument('--output', help="output file")
+    parser.add_argument("--overwrite", action='store_true',
+        help="overwrite output if it exists"
+    )
 
+    parser.add_argument('--tables', nargs='+',
+        help="if `content` covers multiple tables, use only these")
+    parser.add_argument('--data',
+        help="path (e.g. '.') on which to find data, will check for "
+             "mismatch in tables / fields with metadata)")
+    parser.add_argument('--missing-content',
+        help="extend (or create) the file used with --content "
+             "to include missing info. based on --data", metavar='FILE')
 
+    parser.add_argument('--no-template-attributes', action='store_true',
+        help="ignore (and drop) all attribute level metadata in template")
 
+    return parser
 def make_path(dom, path, textpath, text):
     """make_path - find or make a path of XML elements ending
     in one with `text` as its text content (maybe in a subpath) e.g.:
@@ -461,6 +466,67 @@ def merge_content(old, new, names, sublists=None):
     merged.extend(to_append)
 
     return merged
+def missing_content(opt, content):
+    """missing_content - make table for --content for missing info.
+
+    :param argparse Namespace opt: options
+    :param content: existing content, to extend
+    """
+
+    # re-arrange content as a dict, COPIED from compare_data()
+    content = {i['entity_name']:i['attributes'] for i in content}
+    for key in list(content):
+        content[key] = {get_val(i, 'attribute_name'):i for i in content[key]}
+
+    # search opt.data for .csv files
+    data = find_data(opt)
+
+    # look for tables / files without metadata
+    for table, fields in data.items():
+        if table not in content:
+            content[table] = {}  # a this *table* to metadata collection
+        # work out which metadata field names are in use
+        metafields = set()
+        for records in content[table].values():
+            metafields.update(records.keys())
+        for field in fields:
+            if field not in content[table]:
+                fieldinfo = {}
+                content[table][field] = fieldinfo
+                for key in KEY_ALIASES:
+                    if key.startswith('entity_'):
+                        continue
+                    set_val(key, metafields, fieldinfo, '')
+                set_val('attribute_name', metafields, fieldinfo, field)
+
+    # now write out the --content table again
+    metafields = set()
+    for table, fields in content.items():
+        metafields.update(fields.keys())
+    metafields = list(metafields)
+    writer = csv.writer(open(opt.missing_content, 'wb'))
+    writer.writerow(['entity_name']+metafields)
+    for table, fields in content.items():
+        row = [table] + [fields.get(k) for k in metafields]
+        writer.writerow(row)
+
+def set_val(key, metafields, fieldinfo, value):
+    """
+    set_val - set a value in a dict of field metadata, using
+    aliases from KEY_ALIASES if they're already in metafields
+
+    :param str key: the key to set
+    :param set(str) metafields: fields already in use
+    :param dict fieldinfo: dict to add key:value too
+    :param str value: value to add
+    """
+
+    for alias in metafields:
+        if alias in KEY_ALIASES[key]:
+            key = alias
+            break
+    fieldinfo[key] = value
+
 def main():
     """read args, load template, update, (over)write output"""
     opt = make_parser().parse_args()
@@ -475,7 +541,8 @@ def main():
     content = None
     template = None
     merged = None
-    datasets = []
+    datasets = []  # may contain any or all of info. from template,
+                   # info. from content, and those two merged
 
     if opt.template:
         template = ContainerParser.handle(opt).entities()
@@ -493,10 +560,18 @@ def main():
             ['entity_name', 'attribute_name'], [None, 'attributes'])
         datasets.append(merged)
 
-    if opt.data:
-        compare_data(opt, datasets[-1])
+    if opt.data and datasets:
+        compare_data(opt, datasets[-1] if datasets else [])
+        # datasets[-1] will be merged info., or content info., or
+        # template info., in that order of preference based on availability
 
-    if not opt.output:
+    if opt.missing_content:
+        if not opt.data:
+            print("--missing-content makes no sense without --data")
+            exit(10)
+        missing_content(opt, datasets[-1] if datasets else [])
+
+    if not opt.output and datasets:
         pprint(datasets[-1])
         return
 
