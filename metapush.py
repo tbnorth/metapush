@@ -501,14 +501,17 @@ def missing_content(opt, content):
 
     # now write out the --content table again
     metafields = set()
-    for table, fields in content.items():
-        metafields.update(fields.keys())
-    metafields = list(metafields)
+    for entity_name, table in content.items():
+        for fieldinfo in table.values():
+            metafields.update(fieldinfo.keys())
+
+    metafields = [i for i in metafields if not i.startswith("entity_")]
     writer = csv.writer(open(opt.missing_content, 'wb'))
     writer.writerow(['entity_name']+metafields)
     for table, fields in content.items():
-        row = [table] + [fields.get(k) for k in metafields]
-        writer.writerow(row)
+        for field in fields.values():
+            row = [table] + [field.get(k) for k in metafields]
+            writer.writerow(row)
 
 def set_val(key, metafields, fieldinfo, value):
     """
@@ -571,10 +574,6 @@ def main():
             exit(10)
         missing_content(opt, datasets[-1] if datasets else [])
 
-    if not opt.output and datasets:
-        pprint(datasets[-1])
-        return
-
     if opt.output:
         # content from template
         template = ContainerParser.handle(opt).entities()
@@ -587,7 +586,8 @@ def main():
 
         return
 
-    print("Didn't find anything to do")
+    if not opt.missing_content:
+        print("Didn't find anything to do")
 
 
 if __name__ == '__main__':
