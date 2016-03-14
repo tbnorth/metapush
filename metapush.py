@@ -21,8 +21,14 @@ etc.) with general and geometry related information. However the
 architecture is intended to be expandable for other targets (ISO19139,
 ISO Feature Catalog) and sources (JSON, YAML etc.).
 
-forgo use of lxml because it's hard to install in some restricted
-environments
+Forgo use of lxml because it's hard to install in some restricted
+environments.
+
+FIXME: do_update overwrites content with blanks, should it not do
+that, or should user supply inputs in sensible order (populated
+table first, then other). UPDATE: immediate problem was unordered
+table / field lists in ContentGeneratorCSV.entities(), but this
+issue still needs checking.
 
 Terry Brown, Terry_N_Brown@yahoo.com, Mon Feb 15 21:20:33 2016
 """
@@ -167,17 +173,20 @@ class ContentGeneratorCSV(ContentGenerator):
         """
 
         entities = []
+        ent2list = {}  # don't add new if source tables/fields unsorted
         reader = csv.reader(open(self.opt.content))
         hdr = {i.lower():n for n,i in enumerate(next(reader))}
         for row in reader:
             # for table inputs describing multiple tables
             row_name = get_val(row, 'entity_name', hdr)
             if (not entities or
-                get_val(entities[-1], 'entity_name') != row_name):
-                entities.append({'entity_name': None, 'attributes': []})
-                entities[-1]['entity_name'] = row_name
-
-            entities[-1]['attributes'].append({k:row[hdr[k]] for k in hdr})
+                get_val(entities[using], 'entity_name') != row_name):
+                if row_name not in ent2list:
+                    entities.append({'entity_name': None, 'attributes': []})
+                    entities[-1]['entity_name'] = row_name
+                    ent2list[row_name] = len(entities) - 1
+                using = ent2list[row_name]
+            entities[using]['attributes'].append({k:row[hdr[k]] for k in hdr})
 
         if self.opt.tables:
             entities = [i for i in entities
@@ -587,6 +596,7 @@ def main():
         return
 
     if not opt.missing_content:
+        pprint(datasets[-1])
         print("Didn't find anything to do")
 
 
