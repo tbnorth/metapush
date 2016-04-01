@@ -122,6 +122,9 @@ class ContainerParserArcGIS(ContainerParser):
                 'attributes': [],
             }
             entities.append(entity)
+            descrip = ele_entity.findall('.//enttypd')
+            if descrip and descrip[0].text.strip():
+                entity['entity_description'] = descrip[0].text.strip()
 
             if self.opt.no_template_attributes:
                 continue
@@ -173,7 +176,7 @@ class ContentGeneratorCSV(ContentGenerator):
         """
 
         entities = []
-        ent2list = {}  # don't add new if source tables/fields unsorted
+        ent2list = {}  # don't add dupes when source tables/fields unsorted
         reader = csv.reader(open(self.opt.content))
         hdr = {i.lower():n for n,i in enumerate(next(reader))}
         for row in reader:
@@ -187,6 +190,11 @@ class ContentGeneratorCSV(ContentGenerator):
                     ent2list[row_name] = len(entities) - 1
                 using = ent2list[row_name]
             entities[using]['attributes'].append({k:row[hdr[k]] for k in hdr})
+            for k in hdr:
+                if k.startswith('entity_') and row[hdr[k]].strip():
+                    # harmlessly copies entity_name over entity_name, needed
+                    # to copy entity_description in some contexts
+                    entities[using][k] = row[hdr[k]].strip()
 
         if self.opt.tables:
             entities = [i for i in entities
@@ -315,12 +323,17 @@ def compare_data(opt, content):
 def do_update(old, new):
     """do_update - like dict.update(), but use canonical key names
 
+    #X Also, don't process keys with non-scalar values
+
     :param dict old: dict to update
     :param dict new: dict with new info.
 
     """
 
     for newkey in new:
+
+        #X if not isinstance(new[newkey], (str, unicode)):
+        #X     continue
 
         if newkey.lower() in KEY_ALIASES:
             old[newkey.lower()] = new[newkey]
@@ -335,6 +348,8 @@ def do_update(old, new):
             old[newkey] = new[newkey]
 def find_data(opt):
     data = {}
+    if opt.data is None:
+        return data
     for path, dirs, files in os.walk(opt.data):
         for file_ in files:
             if file_.lower().endswith(".csv"):
@@ -462,6 +477,7 @@ def merge_content(old, new, names, sublists=None):
         for i_old in merged:
             if get_val(i_old, names[0]) == get_val(i_new, names[0]):
                 found = True
+                #X do_update(i_old, i_new)  # scalar values only
                 if len(names) > 1:
                     i_old[sublists[1]] = merge_content(
                         i_old[sublists[1]], i_new[sublists[1]],
@@ -483,6 +499,7 @@ def missing_content(opt, content):
     """
 
     # re-arrange content as a dict, COPIED from compare_data()
+    full_content = content  # save for entity descriptions below
     content = {i['entity_name']:i['attributes'] for i in content}
     for key in list(content):
         content[key] = {get_val(i, 'attribute_name'):i for i in content[key]}
@@ -521,7 +538,15 @@ def missing_content(opt, content):
         for field in fields.values():
             row = [table] + [field.get(k) for k in metafields]
             writer.writerow(row)
-
+    # write out entity descriptions
+    missing_ents = "%s_ents.%s" % tuple(opt.missing_content.rsplit('.', 1))
+    writer = csv.writer(open(missing_ents, 'wb'))
+    writer.writerow(['entity_name', 'entity_description'])
+    for entity in full_content:
+        row = [
+            (get_val(entity, i) or '') #X .encode('utf-8')
+            for i in ('entity_name', 'entity_description')]
+        writer.writerow(row)
 def set_val(key, metafields, fieldinfo, value):
     """
     set_val - set a value in a dict of field metadata, using
@@ -578,9 +603,9 @@ def main():
         # template info., in that order of preference based on availability
 
     if opt.missing_content:
-        if not opt.data:
-            print("--missing-content makes no sense without --data")
-            exit(10)
+        # if not opt.data:
+        #     print("--missing-content makes no sense without --data")
+        #     exit(10)
         missing_content(opt, datasets[-1] if datasets else [])
 
     if opt.output:
