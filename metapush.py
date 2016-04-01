@@ -247,6 +247,16 @@ class ContentWriterArcGIS(ContentWriter):
                 self.opt.dom.getroot(), 'eainfo/detailed', 'enttyp/enttypl',
                 get_val(entity, 'entity_name')
             )
+
+            entity_description = get_val(entity, 'entity_description')
+            if entity_description and entity_description.strip():
+                enttyp = ent_path[-1].find('enttyp')
+                enttypd = enttyp.find('enttypd')
+                if enttypd is None:
+                    enttypd = ElementTree.Element('enttypd')
+                    enttyp.append(enttypd)
+                enttypd.text = entity_description
+
             detailed = ent_path[-1]
             for attribute in entity['attributes']:
                 attr_path = make_path(
@@ -544,8 +554,14 @@ def missing_content(opt, content):
     writer.writerow(['entity_name', 'entity_description'])
     for entity in full_content:
         row = [
-            (get_val(entity, i) or '') #X .encode('utf-8')
+            (get_val(entity, i) or '')
             for i in ('entity_name', 'entity_description')]
+        # could be ascii/utf-8 OR CP-1252
+        for n in range(len(row)):
+            try:
+                row[n] = row[n].encode('utf-8')
+            except UnicodeDecodeError:
+                row[n] = row[n].decode('windows-1252').encode('utf-8')
         writer.writerow(row)
 def set_val(key, metafields, fieldinfo, value):
     """
