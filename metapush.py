@@ -189,7 +189,11 @@ class ContentGeneratorCSV(ContentGenerator):
                     entities[-1]['entity_name'] = row_name
                     ent2list[row_name] = len(entities) - 1
                 using = ent2list[row_name]
-            entities[using]['attributes'].append({k:row[hdr[k]] for k in hdr})
+            attributes = {k:row[hdr[k]] for k in hdr}
+            attribute_name = get_val(attributes, 'attribute_name')
+            if attribute_name:
+                entities[using]['attributes'].append(attributes)
+                # might just be a description of entities
             for k in hdr:
                 if k.startswith('entity_') and row[hdr[k]].strip():
                     # harmlessly copies entity_name over entity_name, needed
@@ -342,8 +346,8 @@ def do_update(old, new):
 
     for newkey in new:
 
-        #X if not isinstance(new[newkey], (str, unicode)):
-        #X     continue
+        if not isinstance(new[newkey], (str, unicode)):
+            continue
 
         if newkey.lower() in KEY_ALIASES:
             old[newkey.lower()] = new[newkey]
@@ -487,13 +491,11 @@ def merge_content(old, new, names, sublists=None):
         for i_old in merged:
             if get_val(i_old, names[0]) == get_val(i_new, names[0]):
                 found = True
-                #X do_update(i_old, i_new)  # scalar values only
+                do_update(i_old, i_new)  # scalar values only
                 if len(names) > 1:
                     i_old[sublists[1]] = merge_content(
                         i_old[sublists[1]], i_new[sublists[1]],
                         names[1:], sublists[1:])
-                else:
-                    do_update(i_old, i_new)
                 break
         if not found:
             to_append.append(i_new)
@@ -625,6 +627,11 @@ def main():
         missing_content(opt, datasets[-1] if datasets else [])
 
     if opt.output:
+
+        if not opt.template:
+            print "Can't use --output without --template"
+            exit(10)
+
         # content from template
         template = ContainerParser.handle(opt).entities()
         # new content
