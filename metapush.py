@@ -370,6 +370,10 @@ def find_data(opt):
                 filepath = os.path.join(path, file_)
                 reader = csv.reader(open(filepath))
                 data[file_[:-4]] = next(reader)
+                ## row_count = 0
+                ## for i in reader:
+                ##     row_count += 1
+                ## data[file_[:-4]+':row_count'] = str(row_count)
     return data
 def get_val(source, key, hdr=None):
     """get_val - get a value from source with aliases
@@ -639,7 +643,7 @@ def main():
 
         writer = ContentWriter.handle(opt)
         writer.write(merged)
-        opt.dom.write(open(opt.output, 'w'))
+        opt.dom.write(open(opt.output, 'wb'), encoding='utf-8')
 
         return
 
